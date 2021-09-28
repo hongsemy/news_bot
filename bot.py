@@ -1,8 +1,8 @@
 import telegram
 
 # =================== Global Variables ===================
-TOKEN = '1956707809:AAF7QQ2c6Wrcxy-iemmcF-zhF7cLzFjTIIg'
 CHAT_ID = '@uoft_news_bot_channel'
+TOKEN = '1956707809:AAF7QQ2c6Wrcxy-iemmcF-zhF7cLzFjTIIg'
 
 
 # =================== Public Functions ===================
