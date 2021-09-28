@@ -1,9 +1,11 @@
 import requests
 from bs4 import BeautifulSoup
-import pprint
 import copy
 from typing import List
 import bot as bot_handler
+import csv
+import schedule
+import time
 
 # ===================== Templates ========================
 
@@ -162,6 +164,70 @@ def _get_date(news_home, news: dict) -> None:
         # TODO: Should be replaced with proper exception handling method
 
 
+def _write_csv_file(lst_of_news: List[dict], location: str) -> None:
+    """ Write crawled information to a csv file located at specified
+    location
+    
+    Params
+        lst_of_news: A list that contains dictionaries that each
+        represents a single news
+        location: Location where a csv file will be saved
+    """
+    labels = []
+    for keys in lst_of_news[0]:
+        labels.append(keys)
+
+    with open(location, 'w', encoding='UTF8', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames = labels)
+        writer.writeheader()
+        for elem in lst_of_news:
+            writer.writerow(elem)
+
+
+def _read_csv_file(location: str) -> List[dict]:
+    """ Read from a csv file located at specified location and save
+    information as a list of dictionaries where each dictionaries
+    refers to each row in a csv file.
+    
+    Params
+        location: Location where a csv file is located
+    Return
+        A list that contains dictionaries that each represents
+        a single row in a csv file
+    """
+    news_lst = []
+    with open(location, mode='r', encoding='UTF8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            news_lst.append(row)
+    
+    return news_lst
+
+
+def _compare_news(new: List[dict], old: List[dict]) -> int:
+    """ Read from a csv file located at specified location and save
+    information as a list of dictionaries where each dictionaries
+    refers to each row in a csv file.
+    
+    Params
+        new: A list of news crawled from the current cycle 
+        old: A list of news crawled from the previous cycle
+    Return
+        An integer that represents the number of news updates
+    """
+    count = 0
+    for news in new:
+        if news['title'] == old[0]['title'] \
+                                and news['thumbnail'] == old[0]['thumbnail'] \
+                                and news['date'] == old[0]['date'] \
+                                and news['url'] == old[0]['url']:
+            break
+        else:
+            count += 1    
+    
+    return count
+
+
 # ==================== Public Functions ====================
 
 def main() -> None:
@@ -169,12 +235,21 @@ def main() -> None:
     container = _crawl_main_page('https://www.utoronto.ca/news')
     all_news = _crawl_list_page(container)
     news_lst = _crawl_each_news(all_news)
+    old_news = _read_csv_file('./news_bot/news.csv')
+    num_updates = _compare_news(news_lst, old_news)
     bot = bot_handler.create_bot()
-    for news in news_lst:
-        caption = '"' + news['title'] + '"' + '\n\n' \
-                  + news['date'] + '\n\n' + news['url']
-        bot_handler.send_photo(bot, news['thumbnail'], caption)
+    for i in range(num_updates):
+        caption = '"' + news_lst[i]['title'] + '"' + '\n\n' \
+                  + news_lst[i]['date'] + '\n\n' + news_lst[i]['url']
+        bot_handler.send_photo(bot, news_lst[i]['thumbnail'], caption)
+    _write_csv_file(news_lst, './news_bot/news.csv')
+    print('Finished one cycle. ')
 
 
 if __name__ == '__main__':
-    main()
+    print('Program started. Waiting for schedule... ')
+    schedule.every(30).minutes.do(main)
+    while True:
+        schedule.run_pending
+        time.sleep(1)
+    # main()
