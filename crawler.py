@@ -221,7 +221,7 @@ def _compare_news(new: List[dict], old: List[dict]) -> int:
                                 and news['thumbnail'] == old[0]['thumbnail'] \
                                 and news['date'] == old[0]['date'] \
                                 and news['url'] == old[0]['url']:
-            break
+            return count
         else:
             count += 1    
     
@@ -235,21 +235,16 @@ def main() -> None:
     container = _crawl_main_page('https://www.utoronto.ca/news')
     all_news = _crawl_list_page(container)
     news_lst = _crawl_each_news(all_news)
-    old_news = _read_csv_file('./news_bot/news.csv')
+    old_news = _read_csv_file('C:/Users/bcd/desktop/bunchofcrawlers/news_bot/news.csv')
     num_updates = _compare_news(news_lst, old_news)
     bot = bot_handler.create_bot()
     for i in range(num_updates):
         caption = '"' + news_lst[i]['title'] + '"' + '\n\n' \
                   + news_lst[i]['date'] + '\n\n' + news_lst[i]['url']
         bot_handler.send_photo(bot, news_lst[i]['thumbnail'], caption)
-    _write_csv_file(news_lst, './news_bot/news.csv')
+    _write_csv_file(news_lst, 'C:/Users/bcd/desktop/bunchofcrawlers/news_bot/news.csv')
     print('Finished one cycle. ')
 
 
 if __name__ == '__main__':
-    print('Program started. Waiting for schedule... ')
-    schedule.every(30).minutes.do(main)
-    while True:
-        schedule.run_pending
-        time.sleep(1)
-    # main()
+    main()
