@@ -6,6 +6,7 @@ import bot as bot_handler
 import csv
 import schedule
 import time
+import logging
 
 # ===================== Templates ========================
 
@@ -15,6 +16,18 @@ NEWS_TEMPLATE = {
     'thumbnail': '',
     'date': ''
 }
+
+logger = logging.getLogger('uoft')
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s - %(message)s")
+console = logging.StreamHandler()
+file_handler = logging.FileHandler("uoft.log")
+console.setLevel(logging.INFO)
+file_handler.setLevel(logging.WARNING)
+console.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+logger.addHandler(console)
+logger.addHandler(file_handler)
 
 # ================== Private Functions ===================
 
@@ -34,11 +47,9 @@ def _crawl_main_page(url: str):
         container = soup.find('div', attrs={'id': 'block-system-main'})
         return container
     except requests.exceptions.HTTPError as e:
-        print(e) 
-        # TODO: Should be replaced with proper exception handling method
+        raise Exception(str(e) + ": " + url)
     except AttributeError as ae:
-        print(ae) 
-        # TODO: Should be replaced with proper exception handling method
+        raise Exception(str(ae) + ": " + url)
 
 
 def _crawl_list_page(container):
@@ -61,8 +72,8 @@ def _crawl_list_page(container):
             all_news = view_content[1]
             return all_news
     except AttributeError as ae:
-        print(ae)
-        # TODO: Should be replaced with proper exception handling method
+        raise Exception(str(ae) + \
+                     ": Either html format has changed or request went wrong.")
 
 
 def _crawl_each_news(all_news) -> List[dict]:
@@ -75,13 +86,21 @@ def _crawl_each_news(all_news) -> List[dict]:
         A tag object that contains every latest news
     """
     lst_news = []
+    i = 1
     for news_home in all_news.find_all('div', attrs={'class': 'news-home'}):
-        news = copy.deepcopy(NEWS_TEMPLATE)
-        _get_url(news_home, news)
-        _get_title(news_home, news)
-        _get_date(news_home, news)
-        _get_thumbnail(news_home, news)
-        lst_news.append(news)
+        try:
+            news = copy.deepcopy(NEWS_TEMPLATE)
+            _get_url(news_home, news)
+            _get_title(news_home, news)
+            _get_date(news_home, news)
+            _get_thumbnail(news_home, news)
+            lst_news.append(news)
+        except Exception as e:
+            message = "#" + str(i) + ": " + str(e)
+            bot_handler.send_message(bot_handler.create_bot(), message)
+            logger.warning(message)
+        finally:
+            i += 1
     return lst_news
 
 
@@ -99,10 +118,8 @@ def _get_url(news_home, news: dict) -> None:
         url = 'https://www.utoronto.ca' + anchor['href']
         news['url'] = url
     except KeyError as ke:
-        print(ke)
-        print('Anchor is None.')
         news['url'] = 'URL MISSING'
-        # TODO: Should be replaced with proper exception handling method
+        raise Exception('Anchor is None. ')
 
 
 def _get_title(news_home, news: dict) -> None:
@@ -119,10 +136,8 @@ def _get_title(news_home, news: dict) -> None:
         news_title = title.get_text().strip()
         news['title'] = news_title
     except AttributeError as ae:
-        print(ae)
-        print('Title is None.')
         news['title'] = 'TITLE MISSING'
-        # TODO: Should be replaced with proper exception handling method
+        raise Exception('Title is None. ')
 
 
 def _get_thumbnail(news_home, news: dict) -> None:
@@ -139,10 +154,8 @@ def _get_thumbnail(news_home, news: dict) -> None:
         thumbnail = picture.find('img')['src']
         news['thumbnail'] = thumbnail
     except KeyError as ke:
-        print(ke)
-        print('Thumbnail is None.')
         news['thumbnail'] = 'THUMBNAIL MISSING'
-        # TODO: Should be replaced with proper exception handling method
+        raise Exception('Thumbnail is None. ')
 
 
 def _get_date(news_home, news: dict) -> None:
@@ -158,10 +171,8 @@ def _get_date(news_home, news: dict) -> None:
         date = news_home.find('div', {'class': 'date'})
         news['date'] = date.get_text().strip()
     except AttributeError as ae:
-        print(ae)
-        print('Date is None.')
         news['date'] = 'DATE MISSING'
-        # TODO: Should be replaced with proper exception handling method
+        raise Exception('Date is None')
 
 
 def _write_csv_file(lst_of_news: List[dict], location: str) -> None:
@@ -232,18 +243,36 @@ def _compare_news(new: List[dict], old: List[dict]) -> int:
 
 def main() -> None:
     """ Main Function """
-    container = _crawl_main_page('https://www.utoronto.ca/news')
-    all_news = _crawl_list_page(container)
-    news_lst = _crawl_each_news(all_news)
-    old_news = _read_csv_file('C:/Users/bcd/desktop/bunchofcrawlers/news_bot/news.csv')
+    try:
+        container = _crawl_main_page('https://www.utoronto.ca/news')
+    except Exception as e:
+        logger.warning(str(e))
+        return
+    try:
+        all_news = _crawl_list_page(container)
+    except Exception as e:
+        logger.warning(str(e))
+        return
+    if all_news is not None:
+        news_lst = _crawl_each_news(all_news)
+    else:
+        news_lst = []
+    old_news = _read_csv_file(
+                    'C:/Users/bcd/desktop/bunchofcrawlers/news_bot/news.csv')
     num_updates = _compare_news(news_lst, old_news)
     bot = bot_handler.create_bot()
     for i in range(num_updates):
         caption = '"' + news_lst[i]['title'] + '"' + '\n\n' \
                   + news_lst[i]['date'] + '\n\n' + news_lst[i]['url']
-        bot_handler.send_photo(bot, news_lst[i]['thumbnail'], caption)
-    _write_csv_file(news_lst, 'C:/Users/bcd/desktop/bunchofcrawlers/news_bot/news.csv')
-    print('Finished one cycle. ')
+        try:
+            bot_handler.send_photo(bot, news_lst[i]['thumbnail'], caption)
+        except Exception as e:
+            message = "(Sending messsage failed.) #" + str(i) + ": " + str(e)
+            logger.warning(message)
+            bot_handler.send_message(bot, message)
+    _write_csv_file(news_lst,
+                    'C:/Users/bcd/desktop/bunchofcrawlers/news_bot/news.csv')
+    logger.info('Finished One Cycle.')
 
 
 if __name__ == '__main__':
