@@ -138,6 +138,9 @@ def _get_url(news_home, news: dict) -> None:
     except KeyError as ke:
         news['url'] = 'URL MISSING'
         raise Exception('Anchor is None. ')
+    except AttributeError as ae:
+        news['url'] = 'URL MISSING'
+        raise Exception('Anchor is None. ')
 
 
 def _get_title(news_home, news: dict) -> None:
@@ -174,7 +177,9 @@ def _get_thumbnail(news_home, news: dict) -> None:
     except KeyError as ke:
         news['thumbnail'] = 'THUMBNAIL MISSING'
         raise Exception('Thumbnail is None. ')
-    # TODO: attribute error
+    except AttributeError as ae:
+        news['thumbnail'] = 'THUMBNAIL MISSING'
+        raise Exception('Thumbnail is None. ')
 
 
 def _get_date(news_home, news: dict) -> None:
