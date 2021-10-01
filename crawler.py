@@ -21,7 +21,7 @@ logger = logging.getLogger('uoft')
 logger.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s - %(message)s")
 console = logging.StreamHandler()
-file_handler = logging.FileHandler("uoft.log")
+file_handler = logging.FileHandler("C:/Users/bcd/Desktop/bunchofcrawlers/news_bot/uoft.log")
 console.setLevel(logging.INFO)
 file_handler.setLevel(logging.WARNING)
 console.setFormatter(formatter)
@@ -88,19 +88,37 @@ def _crawl_each_news(all_news) -> List[dict]:
     lst_news = []
     i = 1
     for news_home in all_news.find_all('div', attrs={'class': 'news-home'}):
+        news = copy.deepcopy(NEWS_TEMPLATE)
         try:
-            news = copy.deepcopy(NEWS_TEMPLATE)
             _get_url(news_home, news)
-            _get_title(news_home, news)
-            _get_date(news_home, news)
-            _get_thumbnail(news_home, news)
-            lst_news.append(news)
         except Exception as e:
             message = "#" + str(i) + ": " + str(e)
-            bot_handler.send_message(bot_handler.create_bot(), message)
+            bot_handler.report_error(bot_handler.create_error_reporter(),
+                                     message)
             logger.warning(message)
-        finally:
-            i += 1
+        try:
+            _get_title(news_home, news)
+        except Exception as e:
+            message = "#" + str(i) + ": " + str(e)
+            bot_handler.report_error(bot_handler.create_error_reporter(),
+                                     message)
+            logger.warning(message)
+        try:
+            _get_date(news_home, news)
+        except Exception as e:
+            message = "#" + str(i) + ": " + str(e)
+            bot_handler.report_error(bot_handler.create_error_reporter(),
+                                     message)
+            logger.warning(message)
+        try:
+            _get_thumbnail(news_home, news)
+        except Exception as e:
+            message = "#" + str(i) + ": " + str(e)
+            bot_handler.report_error(bot_handler.create_error_reporter(),
+                                     message)
+            logger.warning(message)
+        i += 1
+        lst_news.append(news)
     return lst_news
 
 
@@ -156,6 +174,7 @@ def _get_thumbnail(news_home, news: dict) -> None:
     except KeyError as ke:
         news['thumbnail'] = 'THUMBNAIL MISSING'
         raise Exception('Thumbnail is None. ')
+    # TODO: attribute error
 
 
 def _get_date(news_home, news: dict) -> None:
@@ -243,15 +262,18 @@ def _compare_news(new: List[dict], old: List[dict]) -> int:
 
 def main() -> None:
     """ Main Function """
+    reporter = bot_handler.create_error_reporter()
     try:
         container = _crawl_main_page('https://www.utoronto.ca/news')
     except Exception as e:
         logger.warning(str(e))
+        bot_handler.report_error(reporter, str(e))
         return
     try:
         all_news = _crawl_list_page(container)
     except Exception as e:
         logger.warning(str(e))
+        bot_handler.report_error(reporter, str(e))
         return
     if all_news is not None:
         news_lst = _crawl_each_news(all_news)
@@ -269,9 +291,14 @@ def main() -> None:
         except Exception as e:
             message = "(Sending messsage failed.) #" + str(i) + ": " + str(e)
             logger.warning(message)
-            bot_handler.send_message(bot, message)
-    _write_csv_file(news_lst,
+            bot_handler.report_error(reporter, message)
+    if len(news_lst) != 0:
+        _write_csv_file(news_lst,
                     'C:/Users/bcd/desktop/bunchofcrawlers/news_bot/news.csv')
+    else:
+        message = 'ERROR: No news has been found.'
+        logger.warning(message)
+        bot_handler.report_error(reporter, message)
     logger.info('Finished One Cycle.')
 
 
