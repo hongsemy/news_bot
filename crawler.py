@@ -268,6 +268,7 @@ def _compare_news(new: List[dict], old: List[dict]) -> int:
 def main() -> None:
     """ Main Function """
     reporter = bot_handler.create_error_reporter()
+    bot_handler.report_error(reporter, "NOTIFICATION: STARTING LATEST NEWS UPDATE...")
     try:
         container = _crawl_main_page('https://www.utoronto.ca/news')
     except Exception as e:
@@ -304,7 +305,7 @@ def main() -> None:
         message = 'ERROR: No news has been found.'
         logger.warning(message)
         bot_handler.report_error(reporter, message)
-    logger.info('Finished One Cycle.')
+    bot_handler.report_error(reporter, "NOTIFICATION: FINISHED ONE CYCLE")
 
 
 if __name__ == '__main__':
